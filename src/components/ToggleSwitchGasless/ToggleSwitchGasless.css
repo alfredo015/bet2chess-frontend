@@ -1,0 +1,6 @@
+.toggle-switch-gasless {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+}

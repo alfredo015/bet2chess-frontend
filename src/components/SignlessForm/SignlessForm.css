@@ -1,0 +1,13 @@
+.signless-form--form {
+    display: flex;
+    justify-content: center;
+    flex-direction: column;
+    gap: 10px;
+    padding: 10px 0;
+}
+
+.signless-form__create-new-no-wallet-account-title {
+    text-align: center;
+    margin-bottom: 10px;
+    font-size: 20px;
+}

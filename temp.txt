@@ -1,0 +1,962 @@
+import { useState } from "react";
+import Chessboard from "chessboardjsx";
+import { Chess } from "chess.js";
+import { useEffect } from "react";
+import { Radio, RadioGroup, Stack, Input, Button } from "@chakra-ui/react";
+import axios from "axios";
+import { useNavigate } from "react-router-dom";
+
+interface contra_interface<myType> {
+	w: myType;
+	b: myType;
+}
+
+const contra: contra_interface<string> = {
+	w: "b",
+	b: "w",
+};
+
+interface Props {
+	playerId: string;
+	gameId: string;
+	whitePlayerId: string;
+	blackPlayerId: string;
+	draggable: boolean;
+	handleBoardState: (
+		arg1: boolean,
+		arg2: string,
+		arg3: string,
+		arg4: string
+	) => void;
+}
+
+export const ChessBoard: React.FC<Props> = ({
+	playerId,
+	gameId,
+	whitePlayerId,
+	blackPlayerId,
+	draggable,
+	handleBoardState,
+}) => {
+	const navigate = useNavigate();
+	const [fen, setFen] = useState("start");
+	const [game, setGame] = useState(new Chess());
+	const [elementos, setElementos] = useState<string[]>(new Array<string>());
+	const [turno, setTurno] = useState("w");
+
+	const [nuevoElemento, setNuevoElemento] = useState("");
+
+	const [count, setCount] = useState(0);
+
+	const [playerColor, setPlayerColor] = useState<string>("w");
+	//const [playerId, setPlayerId] = useState('0');
+	// const [gameId, setGameId] = useState('0');
+
+	const [checkState, setCheckState] = useState<boolean>(false);
+	const [checkmateState, setCheckmateState] = useState<boolean>(false);
+	const [drawState, setDrawState] = useState<boolean>(false);
+	const [insufficientState, setInsufficientState] = useState<boolean>(false);
+	const [stalemateState, setStalemateState] = useState<boolean>(false);
+	const [threefoldState, setThreefoldState] = useState<boolean>(false);
+	const [gameoverState, setGameoverState] = useState<boolean>(false);
+	const [gameFinished, setgameFinished] = useState(false);
+
+	const [winner, setWinner] = useState<string>("None");
+
+	const [orientation, setOrientation] = useState<"white" | "black" | undefined>("white");
+
+	useEffect(() => {
+		setTurno(game.turn());
+
+		if (playerId === whitePlayerId) {
+			setPlayerColor("w");
+			setOrientation("white");
+		} else if (playerId == blackPlayerId) {
+			setPlayerColor("b");
+			setOrientation("black");
+		}
+
+		if (gameoverState) {
+			if (turno === "w") {
+				setWinner("b");
+				handleBoardState(
+					false,
+					"FINISHED",
+					blackPlayerId,
+					whitePlayerId
+				);
+			} else {
+				setWinner("w");
+				handleBoardState(
+					false,
+					"FINISHED",
+					whitePlayerId,
+					blackPlayerId
+				);
+			}
+		} else {
+			setWinner("None");
+
+			//handleBoardState(true, "INPROGRESS", "UNDETERMINED", "UNDETERMINED")
+		}
+
+		//handleBoardState(true, "INPROGRESS", "UNDETERMINED", "UNDETERMINED")
+
+		if (gameFinished) {
+			return;
+		}
+
+		const interval = setInterval(async () => {
+			const { data } = await axios.get(`https://vchess.pythonanywhere.com/currentgames`);
+
+			let gamesData;
+
+			if (Array.isArray(data[0])) {
+				gamesData = data;
+			} else {
+				gamesData = [data]; //debe estar como arreglo de arreglos
+			}
+
+			console.log('-------------=========================================================================');
+
+			console.log(gamesData);
+			
+			const temp = gamesData.find((gameData: any) => gameData[0] == gameId);
+
+			if (!temp) {
+				navigate('/');
+				// setgameFinished(true);
+				return;
+			}
+
+			console.log(temp);
+
+
+			// initial state fen : rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1
+			const initFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+			const encodedInitFEN = encodeURI(initFen);
+			setCount(count + 1);
+			//console.log('this is the url to get: ' + `https://vchess.pythonanywhere.com/play?player_id=${playerId}&player_color=${playerColor}&game_id=${gameId}&fen=pppp`)
+			//console.log("This is the encoded FEN init" + encodedInitFEN);
+
+			console.log(
+				"GOING to check if there is anything, opposite player's turn " +
+				contra[playerColor as keyof typeof contra]
+			);
+			fetch(`https://vchess.pythonanywhere.com/status?game_id=${gameId}`)
+				.then((response) => response.json())
+				.then((data) => {
+					console.log(" --- This is the fetched data");
+
+					console.log(JSON.stringify(data));
+					console.log("Current turn is: " + data.turn);
+					//if (data.turn == 'EMPTY' && fen !== 'r1k4r/p2nb1p1/2b4p/1p1n1p2/2PP4/3Q1NB1/1P3PPP/R5K1 b - - 0 19'){
+					if (data.turn !== "EMPTY") {
+						// if (data.fen.includes('b')) {
+						//    setTurno('b')
+						// } else {
+						//     setTurno('w')
+						//  }
+
+						setGame(new Chess(data.fen));
+						setFen(game.fen());
+						console.log(
+							"Forcing the GAME to " +
+							game.fen() +
+							" with this turn " +
+							turno
+						);
+					}
+					//game.load(data.fen);
+					//setFen(data.fen);
+				})
+				.catch((error) => console.error(error));
+			if (game.turn() === contra[playerColor as keyof typeof contra]) {
+			}
+
+			setCheckState(game.inCheck());
+			setCheckmateState(game.isCheckmate());
+			setDrawState(game.isStalemate());
+			setInsufficientState(game.isInsufficientMaterial());
+			setStalemateState(game.isStalemate());
+			setThreefoldState(game.isThreefoldRepetition());
+			setGameoverState(game.isGameOver());
+		}, 1000);
+
+		return () => clearInterval(interval);
+	}, [gameFinished]);
+
+	const handleMove = (move: any) => {
+		console.log(move);
+		let move_in = {
+			from: move.sourceSquare,
+			to: move.targetSquare,
+			promotion: "q",
+		};
+
+		let destination = move_in.to;
+		let destination_position = destination.substr(
+			destination.length - 2,
+			2
+		);
+
+		console.log("I want to go to: " + destination_position);
+
+		let move_res = game.moves({ square: move_in.from });
+		let objectPiece = game.get(move_in.from);
+		console.log(
+			"You want to move:" + objectPiece.color + " - " + objectPiece.type
+		);
+		console.log("These are the movements " + move_res);
+
+		let move_res_f = move_res.map((s: string) => {
+			return s.substr(s.length - 2, 2);
+		});
+
+		console.log("These are the movements (AGAIN): " + move_res_f);
+
+		let valid_position = move_res_f.indexOf(destination_position);
+
+		console.log(
+			"This is found at the array of possible landing positions: " +
+				valid_position
+		);
+
+		/* || objectPiece.color === turno */
+		if (turno == objectPiece.color && turno == playerColor) {
+			//if (1) {
+
+			let move_verb = game.moves({ square: move_in.from, verbose: true });
+			console.log(move_verb);
+			let found: boolean = false;
+			move_verb.forEach((m: any) => {
+				console.log("*** Move to: " + m.to + " has flags " + m.flags);
+				if (m.to == move_in.to) {
+					found = true;
+					console.log("------>This is where it will land");
+					setFen(m.after);
+					game.load(m.after);
+
+					const encodedNewFEN = encodeURI(m.after);
+
+					setTurno(contra[playerColor as keyof typeof contra]);
+
+					fetch(
+						`https://vchess.pythonanywhere.com/play?player_id=${playerId}&game_id=${gameId}&player_color=${playerColor}&fen=${encodedNewFEN}`
+					)
+						.then((response) => response.json())
+						.then((data) => {
+							console.log('############ Second data from the server');
+							console.log(data);
+						})
+						.catch((error) => console.error(error));
+				}
+			});
+		} else {
+			console.log("TURN FOR OTHER PLAYER");
+		}
+	};
+
+	const handleSnapEnd = (move: any) => {
+		console.log("testing letting go");
+	};
+
+	const handlePieceClick = (square: any) => {
+		console.log("Testing Clicked on  " + square);
+		return true;
+	};
+
+	function RadioColorSelect() {
+		return (
+			<RadioGroup onChange={setPlayerColor} value={playerColor}>
+				<Stack direction="row">
+					<Radio value="w">WHITE</Radio>
+					<Radio value="b">BLACK</Radio>
+				</Stack>
+			</RadioGroup>
+		);
+	}
+
+	//function InputPlayerIdState() {
+	//   return (
+	//      <input type='text' onChange={e => setPlayerId(e.target.value)} value={playerId} />
+	//    )
+	//  }
+
+	function ResetGame() {
+		function resetGame() {
+			console.log("Game will reset");
+			fetch(
+				`https://vchess.pythonanywhere.com/play?player_id=${playerId}&game_id=${gameId}&player_color=${playerColor}`
+			)
+				.then((response) => response.json())
+				.then((data) => {
+					console.log(data);
+				})
+				.catch((error) => console.error(error));
+		}
+		return <Button onClick={resetGame}> RESET GAME </Button>;
+	}
+
+	return (
+		<div>
+			<h1> Player: {playerColor == "w" ? "WHITE" : "BLACK"} </h1>
+
+			<Chessboard
+				position={fen}
+				onDrop={(move) => handleMove(move)}
+				dropSquareStyle={{ boxShadow: "inset 0 0 1px 4px #8F8" }}
+				sparePieces={false}
+				draggable={draggable}
+				onMouseOutSquare={handleSnapEnd}
+				onSquareClick={handlePieceClick}
+				orientation={orientation}
+				lightSquareStyle={{ backgroundColor: "#dbebce" }}
+				darkSquareStyle={{ backgroundColor: "#4aad86" }} //7c323d
+			/>
+
+			<p
+				style={{
+					textAlign: 'center',
+					marginTop: '10px'
+				}}
+			>
+				TURN: {turno == "w" ? "WHITE's" : "BLACK's"} turn (You are{" "}
+				{playerColor == 'b' ? 'black' : 'white'} Player ID: {playerId} Game ID: {gameId})
+			</p>
+            
+			{/* <h2> Game States:</h2>
+                <h3> Check: {checkState.toString()}</h3>
+                <h3> Checkmate: {checkmateState.toString()} </h3> 
+                <h3> Draw: {drawState.toString()} </h3> 
+                <h3> Insufficient material: {insufficientState.toString()}</h3>
+                <h3> StaleMate: {stalemateState.toString()}</h3>
+                <h3> Threefold repetion: {threefoldState.toString()}</h3>
+                <h3> GameOver: {gameoverState.toString()} </h3>
+                <h3> Winner: {winner}</h3>
+           
+            <p> Player ID: {playerId} </p>
+            <p> Game ID: {gameId} </p>
+            */}
+		</div>
+	);
+};
+
+//  <input style={{ color: "blue" }} type='text' onChange={e => setPlayerId(e.target.value)} value={playerId} />
+
+//  <input style={{ color: "red" }} type='text' onChange={e => setGameId(e.target.value)} value={gameId} />
+// <ResetGame />
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/*
+interface CancelProps {
+    invitation_id: string;
+    sendDataToParent: (arg: string, arg2:string, arg3:string, arg4:string, arg5:string, arg6:number ) => void
+
+}
+
+const CancelButton : React.FC<CancelProps> = ({ invitation_id, sendDataToParent }) => {
+    const CancelInvitation = () =>{
+        console.log("You want to cancel invitation with this id" + invitation_id  )
+        fetch(`https://vchess.pythonanywhere.com/acceptdeclineinvitation/${invitation_id}/0`)
+            .then(response => response.json())
+            .then(data => {
+                console.log("You tried to CANCEL your invitation, here is response: ");
+                console.log(data);
+                sendDataToParent("", "", "", "", "", 0)
+                
+            })
+            .catch(error => console.error(error));
+    }
+    return (
+        <Button onClick={CancelInvitation} colorScheme='red' > Cancel </Button>
+    )
+}
+
+*/
+
+/*
+
+interface PropsMySentInvitations {
+    sendDataToParent: (arg: string, arg2:string, arg3:string, arg4:string, arg5:string, arg6:number ) => void
+
+}
+
+const MySentInvitations: React.FC<PropsMySentInvitations>  = ( {sendDataToParent} ) => {
+    const [myArray, setMyArray] = useState<string[][]>([]);
+    useEffect( () => {
+        const interval = setInterval(() => {
+            fetch(`https://vchess.pythonanywhere.com/mysentinvitations/${localStorage.playerID}`)
+            .then(response => response.json())
+            .then(data => {
+                console.log("MY INVITATIONS: ");
+                console.log(data)
+                setMyArray(data);
+                const myId : string = localStorage.playerID as string ;
+
+                if( data.length > 0){
+                    console.log("GOT SOMETHING GOOD IN MY INVITATIONS")
+                    
+                    //data.forEach( (r:string) => {
+                    //    console.log("r[5] says: " + r[5] +" ... " + typeof(r[5]))
+                    //    if( r[5] == 'ACCEPTED' ) {
+                    //        console.log("~~~~The game has been accepted!!!");
+                    //        sendDataToParent(r[6], r[1], r[7], r[8],r[9])
+                    //    }
+                    console.log("data[5] says: " + data[5] +" ... " + typeof(data[5]))
+                    const players = [data[1], data[2]];
+                    console.log("The players are: " + players.toString() )
+                    const otherPlayer = data[2]
+                    const otherPlayerName = data[7];
+                    console.log("The other player is " +otherPlayerName + " " + otherPlayer);
+                    const player_id_white = data[8];
+                    const player_id_black = data[9];
+                    const game_id = data[6];
+                    console.log("Player White: " + player_id_white)
+                    console.log("Player Black: " + player_id_black)
+                    console.log("Game Id: " + game_id)
+                    if( game_id > 0 ){
+                        sendDataToParent(game_id, otherPlayer, otherPlayerName, player_id_white, player_id_black, 3)
+
+                    }
+
+                    // check if they are declined...
+
+                    
+                    
+
+
+                } else {
+                    
+                   sendDataToParent("", "", "", "", "", 0)
+                }
+                
+            })
+            .catch(error => console.error(error));
+        }, 500);
+    return () => clearInterval(interval);
+    }, [])
+
+    
+
+    const Row = (item:string[]) => {
+        return (
+            <Tr> <Td> {item[7]} </Td>  
+            <Td> {item[5]}  </Td>
+            <Td> <CancelButton  invitation_id={ item[0] } sendDataToParent={sendDataToParent} /> </Td>
+            </Tr>
+        )
+    }
+
+    // <p> {item[0]} {item[1]} {item[2]} {item[3]}  {item[4]} {item[5]} {item[6]} {item[7]} </p> 
+
+    return (
+        <>
+        <h3> These are the sent invitations </h3>
+        <TableContainer>
+                <Table variant='simple'>
+                    <Thead>
+                        <Tr>
+                            <Th>Inviting Player</Th>
+                            <Th>Status </Th>
+                            <Th> Cancel </Th>
+                        </Tr>
+                    </Thead>
+                    <Tbody>
+        {myArray.map((item, index) =>  ( 
+            item[5] !== "DECLINED" ? Row (item) : ""
+        ))}
+        </Tbody>
+        </Table>
+        </TableContainer>
+        </>
+    )
+}
+
+
+*/
+
+/*
+
+interface Props {
+    sendDataToParent: (arg: string, arg2:string, arg3:string, arg4:string, arg5:string, arg6:number) => void
+    player_id_from: string;
+    player_name_from: string;
+    player_id_white: string;
+    player_id_black: string;
+    invitation_id: string;
+
+}
+
+const AcceptButton: React.FC<Props> = ({sendDataToParent, player_id_from, player_name_from, player_id_white, player_id_black, invitation_id}) => {
+    const [gameid, setGameId] = useState<string>("");
+    const acceptInvitation = () => {
+        console.log("You want to accept the invitation from  " + player_name_from)
+
+        
+        //fetch(`https://vchess.pythonanywhere.com/acceptdeclineinvitation/${invitation_id}/1`)
+        fetch(`https://vchess.pythonanywhere.com/acceptdeclineinvitation/${invitation_id}/1`)
+
+        .then(response => response.json())
+        .then(data => {
+            console.log("You tried to accept invitation, here is response: " + data);
+            console.log(data);
+            setGameId(data)
+            sendDataToParent(data, player_id_from, player_name_from,player_id_white, player_id_black, 2 )
+            
+        })
+        .catch(error => console.error(error));
+    }
+
+    return (
+        <Button onClick={acceptInvitation} colorScheme='teal' > Accept </Button>
+
+    );
+};
+
+
+*/
+
+/*
+
+interface DeclineProps {
+    invitation_id: string;
+    sendDataToParent: (arg: string, arg2:string, arg3:string, arg4:string, arg5:string, arg6:number) => void
+    
+}
+
+const DeclineButton: React.FC <DeclineProps> = ( {sendDataToParent, invitation_id  } ) =>{
+    const declineInvitation = () => {
+        console.log("Decline invitation with id " + invitation_id)
+
+        fetch(`https://vchess.pythonanywhere.com/acceptdeclineinvitation/${invitation_id}/0`)
+            .then(response => response.json())
+            .then(data => {
+                console.log("You tried to DECLINE the invitation, here is response: ");
+                console.log(data);
+                
+                
+            })
+            .catch(error => console.error(error));
+
+            sendDataToParent("", "", "", "", "", 0)
+    }
+    return ( 
+        <Button onClick={declineInvitation} colorScheme='red' > Decline </Button>
+  )
+}
+
+
+*/
+
+/*
+
+interface IsecondChildProps {
+    sendDataToParent: (arg: string, arg2:string, arg3:string, arg4:string, arg5:string, arg6: number) => void
+}
+
+const MyInvitations: React.FC<IsecondChildProps> = ({sendDataToParent}) => {
+    const [myArray, setMyArray] = useState<string[][]>([]);
+    useEffect( () => {
+        const interval = setInterval(() => {
+        
+            fetch(`https://vchess.pythonanywhere.com/myinvitations/${localStorage.playerID}`)
+            .then(response => response.json())
+            .then(data => {
+                console.log("I AM BEEING INVITED TO: ");
+                console.log(data)
+                console.log("THIS IS THE FIRST ELEMENT: " + data[0])
+                setMyArray([ ... data ]);
+                data.forEach( (r:string[]) => {
+                    console.log("data[5] says: " + r[5] +" ... " + typeof(r[5]))
+                    if( r[5] === 'ACCEPTED'){
+                        const players = [r[1], r[2]];
+                        console.log("The players are: " + players.toString() )
+                        const otherPlayer = r[2]
+                        const otherPlayerName = r[7];
+                        console.log("The other player is " +otherPlayerName + " " + otherPlayer);
+                        const player_id_white = r[8];
+                        const player_id_black = r[9];
+                        const game_id = r[6];
+                        console.log("Player White: " + player_id_white)
+                        console.log("Player Black: " + player_id_black)
+                        console.log("Game Id: " + game_id)
+                        sendDataToParent(game_id, otherPlayer, otherPlayerName, player_id_white, player_id_black, 2)
+                    }
+                });
+
+                
+            })
+            .catch(error => console.error(error));
+        }, 500);
+        return () => clearInterval(interval);
+    }, [myArray])
+
+    
+    interface RowProp {
+        item : string[];
+    }
+    const Row : React.FC<RowProp> = ({item}) => {
+        return (
+            <Tr> <Td> {item[7]} - {item[5]} </Td>  
+            <Td> <AcceptButton  sendDataToParent={sendDataToParent} player_id_from={item[1]} 
+                        player_name_from={item[7]} player_id_white={item[8]} player_id_black={item[9]}
+                        invitation_id={item[0]}/> 
+            </Td>
+            <Td> <DeclineButton sendDataToParent={sendDataToParent} invitation_id={item[0]} /></Td>
+            </Tr>
+        )
+    }
+
+    return (
+        <>
+        <h3> I am being invited to:</h3>
+
+        <TableContainer>
+                <Table variant='simple'>
+                    <Thead>
+                        <Tr>
+                            <Th>Player Inviter</Th>
+                            <Th>Accept? </Th>
+                            <Th>Decline? </Th>
+                        </Tr>
+                    </Thead>
+                    <Tbody>
+
+                    
+        {myArray.map((item) =>  ( 
+            
+            item[5] == 'WAITING' ? Row ({item}) : ""
+        ))}
+
+        </Tbody>
+        </Table>
+        </TableContainer>
+        
+        </>
+    )
+}
+
+*/
+
+/*
+interface ForfeitProps {
+    parentFunction: (playing: boolean) => void;
+    gameId: string;
+    otherPlayerId: string;
+}
+
+const ForfeitGame: React.FC<ForfeitProps> = ({parentFunction, gameId, otherPlayerId}) => {
+
+    const handleClick = () => {
+        console.log("You want to cancel the game")
+        fetch(`https://vchess.pythonanywhere.com/endgame/${gameId}/${otherPlayerId}/${localStorage.playerID}/2`)
+        .then(response => response.json())
+        .then(data => {
+            console.log("FORFEIT status: ");
+            console.log(data)
+            if (data===true){
+                console.log("FORFEIT  successfuly ");
+                parentFunction(false)     //instead of setPlaying(false)
+                
+                
+            } else {
+                console.log("FORFEIT  problem ");
+            }
+        })
+        .catch(error => console.error(error));
+    }
+    
+
+    return( <Button onClick = {handleClick}> Forfeit game</Button> )
+
+}
+
+*/
+
+/*
+interface ShowAvailablePlayersProps {
+    players: string[][];
+    parentSelectPlayer: (arg1: string) => void;
+}
+
+
+const ShowAvailablePlayers:React.FC<ShowAvailablePlayersProps> = ({players, parentSelectPlayer}) => {
+    const disableButton = (val: string):boolean => {
+        console.log("hey I want to disable this thing... heres what i got " + val)
+        if (val === "AVAILABLE"){
+            console.log("going to send false");
+            return false;
+        }else {
+            console.log("going to send TRUE");
+            return true;
+        }
+    }
+    return (
+        <TableContainer>
+            <Table variant='simple'>
+                <Thead>
+                    <Tr>
+                        <Th>Players</Th>
+                        <Th>ID </Th>
+                        <Th>STATUS </Th>
+                    </Tr>
+                </Thead>
+                <Tbody>
+                    {players.map((item) =>  ( 
+                        <Tr>
+                        <Td > <Button isDisabled={disableButton(item[3])} onClick={() => parentSelectPlayer(item[2])} > {item[0]} </Button> </Td>
+                        <Td>{item[2]}</Td>
+                        <Td>{item[3]}</Td>
+                        </Tr>
+                    ))}
+                    
+                    
+                </Tbody>
+                
+            </Table>
+        </TableContainer>
+    )
+}
+*/
+
+/*
+
+[TODO]: Sin usos
+
+function BasicUsage() {
+    const { isOpen, onOpen, onClose } = useDisclosure()
+    return (
+      <>
+        <Button onClick={onOpen}>Open Modal</Button>
+  
+        <Modal isOpen={isOpen} onClose={onClose}>
+          <ModalOverlay />
+          <ModalContent>
+            <ModalHeader>Modal Title</ModalHeader>
+            <ModalCloseButton />
+            <ModalBody>
+              This is some data
+            </ModalBody>
+  
+            <ModalFooter>
+              <Button colorScheme='blue' mr={3} onClick={onClose}>
+                Close
+              </Button>
+              <Button variant='ghost'>Secondary Action</Button>
+            </ModalFooter>
+          </ModalContent>
+        </Modal>
+      </>
+    )
+  }
+
+
+const ButtonForModal: React.FC = () => {
+    return(
+        <Button onClick={BasicUsage}>Click here to open a dialog</Button>
+    )
+}
+
+
+const AdviseToConnect = () => {
+    return(
+        <h1 style={{fontSize: '40px' }}>Please connect your wallet...</h1>
+    )
+}
+
+*/
+
+/*
+interface ShowStatusProps {
+    message: string;
+    gameState: string;
+    whitePlayerId:string;
+    blackPlayerId:string;
+    playerWinner:string;
+    playerLoser:string;
+    playerWhiteName:string;
+    playerBlackName:string;
+    viewerMode:boolean;
+}
+
+const ShowStatus: React.FC <ShowStatusProps> = ({message, gameState, whitePlayerId, blackPlayerId, playerWinner, playerLoser, playerWhiteName, playerBlackName, viewerMode}) => {
+    
+    return( 
+        <>
+            
+            { viewerMode == true && <h1 style={{fontSize: '40px', backgroundColor:'purple', color:'teal' }}> VIEWER MODE </h1> }
+            <h1 style={{fontSize: '30px', backgroundColor:'white', color:'black' }}>WHITE: {playerWhiteName}  {whitePlayerId} </h1>
+                
+                <br /> VS <br />
+            <h1 style={{fontSize: '30px', backgroundColor:'black', color:'white' }}> BLACK: {playerBlackName} {blackPlayerId} </h1>
+        
+            {* TODO *}
+            {* <h1>MESSAGE: {message} / {gameState} / WINS: {playerWinner} LOSES: {playerLoser} </h1> *}
+             
+        </>
+    )
+}
+
+*/

@@ -1,0 +1,20 @@
+@use '@gear-js/ui/variables' as *;
+
+.wallet {
+  display: flex;
+  align-items: center;
+  position: relative;
+  justify-content: center;
+  background-color: #0b8e5c;
+}
+
+.balance {
+  margin-right: 25px;
+  font-size: $fontSizeMedium;
+  height: 100%;
+  margin-bottom: 0;
+}
+
+.currency {
+  color: $textColorSecondary;
+}
