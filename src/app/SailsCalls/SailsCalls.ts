@@ -1,6 +1,7 @@
 
 
 import { Sails, TransactionBuilder } from "sails-js";
+import { SailsIdlParser } from "sails-js-parser";
 import { KeyringPair, KeyringPair$Json } from '@polkadot/keyring/types';
 import { GearApi, GearKeyring, HexString, IUpdateVoucherParams } from "@gear-js/api";
 import { 
@@ -13,7 +14,8 @@ import {
     ISailsCalls,
     WalletSigner,
 } from "./types";
-import { IKeyringPair } from "@polkadot/types/types";
+import { Codec, CodecClass, IKeyringPair } from "@polkadot/types/types";
+import { Signer } from "@polkadot/api/types";
 
 export class SailsCalls {
     private sails: Sails;
@@ -100,7 +102,8 @@ export class SailsCalls {
      */
     static new = (data?: ISailsCalls): Promise<SailsCalls> => {
         return new Promise(async resolve => {
-            const sailsInstance = await Sails.new();
+            const parser = await SailsIdlParser.new();
+            const sailsInstance = new Sails(parser);
 
             let contractId: HexString | null = null;
             let idl: string | null = null;
@@ -625,7 +628,7 @@ export class SailsCalls {
 
             if ("signer" in signerData) {
                 const { userAddress, signer } = signerData as WalletSigner;
-                transaction.withAccount(userAddress, { signer });
+                transaction.withAccount(userAddress, { signer: (signer as string | CodecClass<Codec, any[]>) as Signer });
             } else {
                 const keyringPair = signerData as IKeyringPair;
                 transaction.withAccount(keyringPair);
@@ -1431,9 +1434,6 @@ export class SailsCalls {
         const signlessToSend = JSON.parse(JSON.stringify(pair));
         delete signlessToSend['encoding'];
         delete signlessToSend['meta'];
-        // const encodingType = signlessToSend.encoding.type;
-        // delete signlessToSend.encoding['type'];
-        // signlessToSend.encoding['encodingType'] = encodingType;
     
         return signlessToSend;
     }
